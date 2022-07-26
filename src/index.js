@@ -10,31 +10,28 @@ const $startStopBtn = getElem('#start-stop-btn');
 const $lapResetBtn = getElem('#lap-reset-btn');
 const $lapResetBtnLabel = getElem('#lap-reset-btn-label');
 const $startStopBtnLabel = getElem('#start-stop-btn-label');
-const $ul = getElem('#laps');
+const $ulLaps = getElem('#laps');
+
 let isRunning = false;
 
-const setTimeFormat = (time) => {
+const formatNumber = (number) => {
+    if (number < 10) {
+        number = `0${number}`;
+    }
+    return number;
+};
+const formatTime = (time) => {
     let centisecond = time % 100;
-    let second = Math.floor(time / 100);
-    let minute = 0;
-    if (60 <= second) {
-        minute = Math.floor(second / 60);
-        second = second % 60;
-    }
-    if (centisecond < 10) {
-        centisecond = `0${centisecond}`;
-    }
-    if (second < 10) {
-        second = `0${second}`;
-    }
-    if (minute < 10) {
-        minute = `0${minute}`;
-    }
-    return `${minute}:${second}.${centisecond}`;
+    let second = Math.floor(time / 100) % 60;
+    let minute = Math.floor(time / 6000);
+
+    return `${formatNumber(minute)}:${formatNumber(second)}.${formatNumber(
+        centisecond
+    )}`;
 };
 const drawTimer = (time) => {
-    const reulstTime = setTimeFormat(time);
-    $timer.textContent = reulstTime;
+    const resultTime = formatTime(time);
+    $timer.textContent = resultTime;
 };
 
 let intervalId;
@@ -81,49 +78,71 @@ const startStopBtnHandler = () => {
 const resetBtnHandler = () => {
     stopWatch.reset();
     $timer.textContent = '00:00.00';
+    $ulLaps.innerHTML = '';
+    $minLapTime = undefined;
+    $maxLapTime = undefined;
 };
 
-const colorLapTime = (target, type) => {
-    if (type !== 'shortest' && type !== 'longest') {
-        throw new Error('invalid type');
-    }
-    let comparison = type === 'shortest' ? '99:99.99' : '00:00.00';
-    const styleClass = type === 'shortest' ? 'text-green-600' : 'text-red-600';
-    let index;
-    for (let i = 0; i < target.children.length; i += 1) {
-        const $li = target.children[i];
-        const $lapSpan = $li.children[1];
-        $li.classList.remove(styleClass);
-        if (type === 'shortest' && $lapSpan.textContent < comparison) {
-            comparison = $lapSpan.textContent;
-            index = i;
-        } else if (type === 'longest' && comparison < $lapSpan.textContent) {
-            comparison = $lapSpan.textContent;
-            index = i;
-        }
-    }
-    target.children[index].classList.add(styleClass);
+let $minLapTime;
+let $maxLapTime;
+
+const colorMinMaxLapTime = () => {
+    $maxLapTime.classList.add('text-red-600');
+    $minLapTime.classList.add('text-green-600');
 };
 
 const lapBtnHandler = () => {
     const [lapCount, lapTime] = stopWatch.createLap();
-    const formattedLapTime = setTimeFormat(lapTime);
+    const formattedLapTime = formatTime(lapTime);
 
-    const $li = document.createElement('li');
+    const $liLap = document.createElement('li');
+    $liLap.setAttribute('data-lap', formattedLapTime);
+
     const $lapSpan = document.createElement('span');
     const $lapTimeSpan = document.createElement('span');
 
-    $li.classList.add('flex', 'justify-between', 'py-2', 'px-3', 'border-b-2');
+    $liLap.classList.add(
+        'flex',
+        'justify-between',
+        'py-2',
+        'px-3',
+        'border-b-2'
+    );
     $lapSpan.textContent = `랩 ${lapCount}`;
     $lapTimeSpan.textContent = formattedLapTime;
 
-    $li.append($lapSpan);
-    $li.append($lapTimeSpan);
+    $liLap.append($lapSpan);
+    $liLap.append($lapTimeSpan);
 
-    $ul.prepend($li);
+    $ulLaps.prepend($liLap);
 
-    colorLapTime($ul, 'shortest');
-    colorLapTime($ul, 'longest');
+    // 처음 추가
+    if (undefined === $minLapTime) {
+        $minLapTime = $liLap;
+        return;
+    }
+
+    // 두 번째
+    else if (undefined === $maxLapTime) {
+        if ($liLap.dataset.lap < $minLapTime.dataset.lap) {
+            $maxLapTime = $minLapTime;
+            $minLapTime = $liLap;
+        } else {
+            $maxLapTime = $liLap;
+        }
+    }
+
+    // 세 번째부터
+    else {
+        if ($maxLapTime.dataset.lap < $liLap.dataset.lap) {
+            $maxLapTime.classList.remove('text-red-600');
+            $maxLapTime = $liLap;
+        } else if ($liLap.dataset.lap < $minLapTime.dataset.lap) {
+            $minLapTime.classList.remove('text-green-600');
+            $minLapTime = $liLap;
+        }
+    }
+    colorMinMaxLapTime();
 };
 
 const lapRestBtnHandler = () => {
@@ -134,5 +153,17 @@ const lapRestBtnHandler = () => {
     }
 };
 
+const onKeyDown = (e) => {
+    switch (e.code) {
+        case 'KeyS':
+            startStopBtnHandler();
+            break;
+        case 'KeyL':
+            lapRestBtnHandler();
+            break;
+    }
+};
+
 $startStopBtn.addEventListener('click', startStopBtnHandler);
 $lapResetBtn.addEventListener('click', lapRestBtnHandler);
+document.addEventListener('keydown', onKeyDown);
